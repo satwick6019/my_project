@@ -1,15 +1,15 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import pymysql
 import uuid
-import time
+import time, os
 
 app = Flask(__name__)
 
 # Database connection details for MySQL
-MYSQL_HOST = 'your_host'
-MYSQL_USER = 'your_user'
-MYSQL_PASSWORD = 'your_password'
-MYSQL_DB = 'your_db_name'
+MYSQL_HOST = os.environ['MYSQL_HOST']
+MYSQL_USER = os.environ['MYSQL_USER']
+MYSQL_PASSWORD = os.environ['MYSQL_PASSWORD']
+MYSQL_DB = os.environ['MYSQL_DB']
 
 # Create a function to get a database connection
 def get_db_connection():
