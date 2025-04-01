@@ -1,26 +1,41 @@
-import uuid
-from flask import Flask, render_template, request, redirect, url_for
 from flask import Flask, render_template, request, redirect, url_for, jsonify
-
-from flask_sqlalchemy import SQLAlchemy
+import pymysql
 import uuid
 import time
 
 app = Flask(__name__)
-import os
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(BASE_DIR, 'instance', 'messages.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-db = SQLAlchemy(app)
 
-class Message(db.Model):
-    id = db.Column(db.String(8), primary_key=True)
-    content = db.Column(db.String(1000), nullable=False)
+# Database connection details for MySQL
+MYSQL_HOST = 'your_host'
+MYSQL_USER = 'your_user'
+MYSQL_PASSWORD = 'your_password'
+MYSQL_DB = 'your_db_name'
 
+# Create a function to get a database connection
+def get_db_connection():
+    connection = pymysql.connect(
+        host=MYSQL_HOST,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD,
+        db=MYSQL_DB,
+        cursorclass=pymysql.cursors.DictCursor  # This returns results as dictionaries
+    )
+    return connection
 
 @app.before_request
 def create_tables():
-    db.create_all()
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    # Create the messages table if it doesn't exist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id VARCHAR(8) PRIMARY KEY,
+            content TEXT NOT NULL
+        )
+    """)
+    connection.commit()
+    connection.close()
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -29,50 +44,69 @@ def index():
         if not message_content:
             return "Error: No message entered!"
 
-        D
+        # Generate a short unique message ID
         message_id = str(uuid.uuid4())[:8]
 
-       
-        new_message = Message(id=message_id, content=message_content)
-        db.session.add(new_message)
-        db.session.commit()
+        # Insert the message into the database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("INSERT INTO messages (id, content) VALUES (%s, %s)", (message_id, message_content))
+        connection.commit()
+        connection.close()
 
-       
+        # Create a link to read the message
         message_link = url_for("read_message", message_id=message_id, _external=True)
 
-       
         return render_template("index.html", link=message_link)
 
     return render_template("index.html")
 
 @app.route("/read/<message_id>")
 def read_message(message_id):
-    
-    msg = db.session.get(Message, message_id)
-    
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    # Fetch the message content from the database
+    cursor.execute("SELECT content FROM messages WHERE id = %s", (message_id,))
+    msg = cursor.fetchone()
+
     if msg:
-        content = msg.content
+        content = msg['content']
 
-        
-        time.sleep(10)  
+        # Simulate a delay of 10 seconds before deleting the message
+        time.sleep(10)
 
-       
-        db.session.delete(msg)
-        db.session.commit()
+        # Delete the message from the database after reading
+        cursor.execute("DELETE FROM messages WHERE id = %s", (message_id,))
+        connection.commit()
+        connection.close()
 
         return render_template("message.html", message=content)
-    
+
+    connection.close()
     return "Message not found or already deleted."
 
 @app.route('/delete_message', methods=['POST'])
 def delete_message():
     message_data = request.get_json()
     message_id = message_data.get('message_id')
-    msg = Message.query.filter_by(id=message_id).first()
+
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    # Check if the message exists
+    cursor.execute("SELECT * FROM messages WHERE id = %s", (message_id,))
+    msg = cursor.fetchone()
+
     if msg:
-        db.session.delete(msg)
-        db.session.commit()
+        # Delete the message from the database
+        cursor.execute("DELETE FROM messages WHERE id = %s", (message_id,))
+        connection.commit()
+        connection.close()
         return jsonify({'status': 'Message deleted'}), 200
+
+    connection.close()
     return jsonify({'status': 'Message not found'}), 404
+
 if __name__ == "__main__":
     app.run(debug=True)
