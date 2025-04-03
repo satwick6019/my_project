@@ -109,6 +109,4 @@ def delete_message():
     return jsonify({'status': 'Message not found'}), 404
 
 if __name__ == "__main__":
-    app.run(debug=True)
-    port = int(os.environ.get("PORT", 8080))  # Render provides PORT in env variables
-    app.run(host="0.0.0.0", port=port)
+    app.run(host='0.0.0.0',port=8080)
